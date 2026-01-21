@@ -39,11 +39,12 @@ const rowClose = new ActionRowBuilder().addComponents(
   new ButtonBuilder().setCustomId("fechar_ticket").setLabel("Fechar Ticket").setStyle(ButtonStyle.Danger)
 );
 
+// MENU PRINCIPAL
 const menu = new StringSelectMenuBuilder()
   .setCustomId("menu_vendas")
   .setPlaceholder("🛒 Selecione o produto")
   .addOptions([
-    { label: "Robux", value: "robux", emoji: "💰" },
+    { label: "Moedas Digitais", value: "moedas_digitais", emoji: "💎" },
     { label: "Jogos", value: "jogos", emoji: "🎮" },
     { label: "Fuja Do Tsunami Para Brainrots", value: "brainrots", emoji: "🧠" },
     { label: "Contas de Steam", value: "steam", emoji: "🔥" },
@@ -51,6 +52,20 @@ const menu = new StringSelectMenuBuilder()
   ]);
 
 const rowMenu = new ActionRowBuilder().addComponents(menu);
+
+// MENU SECUNDÁRIO DE MOEDAS DIGITAIS
+const menuMoedas = new StringSelectMenuBuilder()
+  .setCustomId("menu_moedas")
+  .setPlaceholder("💎 Escolha a moeda digital")
+  .addOptions([
+    { label: "Robux", value: "robux", emoji: "💰" },
+    { label: "V-Bucks", value: "vbucks", emoji: "🪙" },
+    { label: "Diamantes FF", value: "diamantes_ff", emoji: "🔹" },
+    { label: "COD Points", value: "cod_points", emoji: "🎯" },
+    { label: "VP", value: "vp", emoji: "💠" }
+  ]);
+
+const rowMenuMoedas = new ActionRowBuilder().addComponents(menuMoedas);
 
 // Mensagem inicial do menu com embed bonito
 client.on("ready", async () => {
@@ -68,6 +83,28 @@ client.on("ready", async () => {
   await canal.send({ embeds: [menuEmbed], components: [rowMenu] });
   console.log("Menu de vendas enviado!");
 });
+
+// Função auxiliar para criar tickets
+async function criarTicket(interaction, nome) {
+  const channel = await interaction.guild.channels.create({
+    name: `🛒-${nome}-${interaction.user.username}`,
+    type: ChannelType.GuildText,
+    parent: TICKET_CATEGORY_ID,
+    permissionOverwrites: [
+      { id: interaction.guild.id, deny: [PermissionsBitField.Flags.ViewChannel] },
+      { id: interaction.user.id, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] },
+      { id: OWNER_ROLE_ID, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] },
+      { id: STAFF_ROLE_ID, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] }
+    ]
+  });
+
+  const ticketEmbed = new EmbedBuilder()
+    .setTitle("📦 Status do Pedido")
+    .setDescription("🟡 Aguardando Pagamento")
+    .setColor(0xffcc00);
+
+  await channel.send({ embeds: [ticketEmbed], components: [statusRow, pagamentoRow, rowClose] });
+}
 
 // EVENTO DE INTERAÇÃO
 client.on("interactionCreate", async (interaction) => {
@@ -87,7 +124,7 @@ client.on("interactionCreate", async (interaction) => {
 
     // Enviar PIX
     if (interaction.customId === "enviar_pix") {
-      await interaction.deferReply({ ephemeral: true }); // evita "interação falhou"
+      await interaction.deferReply({ ephemeral: true });
       await interaction.channel.send({
         embeds: [
           new EmbedBuilder()
@@ -139,32 +176,34 @@ client.on("interactionCreate", async (interaction) => {
     }
   }
 
-  // MENU DE SELEÇÃO
-  if (interaction.isStringSelectMenu() && interaction.customId === "menu_vendas") {
-    const produto = interaction.values[0];
+  // MENUS DE SELEÇÃO
+  if (interaction.isStringSelectMenu()) {
 
-    const channel = await interaction.guild.channels.create({
-      name: `🛒-${produto}-${interaction.user.username}`,
-      type: ChannelType.GuildText,
-      parent: TICKET_CATEGORY_ID,
-      permissionOverwrites: [
-        { id: interaction.guild.id, deny: [PermissionsBitField.Flags.ViewChannel] },
-        { id: interaction.user.id, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] },
-        { id: OWNER_ROLE_ID, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] },
-        { id: STAFF_ROLE_ID, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] }
-      ]
-    });
+    // MENU PRINCIPAL
+    if (interaction.customId === "menu_vendas") {
+      const produto = interaction.values[0];
 
-    await interaction.reply({ content: "✅ Ticket criado!", ephemeral: true });
+      // Se for Moedas Digitais, envia o menu secundário
+      if (produto === "moedas_digitais") {
+        return interaction.reply({
+          content: "💎 Você escolheu Moedas Digitais! Agora selecione a moeda que deseja:",
+          components: [rowMenuMoedas],
+          ephemeral: true
+        });
+      }
 
-    const ticketEmbed = new EmbedBuilder()
-      .setTitle("📦 Status do Pedido")
-      .setDescription("🟡 Aguardando Pagamento")
-      .setColor(0xffcc00);
+      // Outros produtos
+      await criarTicket(interaction, produto);
+      await interaction.reply({ content: `✅ Ticket criado para: ${produto}`, ephemeral: true });
+    }
 
-    await channel.send({ embeds: [ticketEmbed], components: [statusRow, pagamentoRow, rowClose] });
+    // MENU SECUNDÁRIO DE MOEDAS DIGITAIS
+    if (interaction.customId === "menu_moedas") {
+      const moeda = interaction.values[0];
+      await criarTicket(interaction, moeda);
+      await interaction.reply({ content: `✅ Ticket criado para: ${moeda}`, ephemeral: true });
+    }
   }
-
 });
 
 client.login(process.env.TOKEN);
